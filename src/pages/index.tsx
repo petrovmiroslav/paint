@@ -1,114 +1,268 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import styles from '@/styles/Home.module.css'
+import React from "react";
+import { PageWithLayout } from "@/utils/next/next";
+import { PageLayout } from "@/layouts/PageLayout/PageLayout";
+import {
+  CanvasComponent,
+  CanvasComponentProps,
+} from "@/sections/Home/Canvas/CanvasComponent";
+import { Canvas } from "@/features/canvas/model";
+import { PointerState } from "@/features/pointer/constants";
+import { useCanvas } from "@/features/canvas/hooks/useCanvas/useCanvas";
+import { useHistory } from "@/features/history/hooks/useHistory/useHistory";
+import { Tools, ToolsState } from "@/features/tools/constants";
+import { ToolBar } from "@/sections/Home/ToolBar/ToolBar";
+import { config } from "@/features/app/constants";
+import { roundMousePosition } from "@/features/pointer/utils/utils";
+import { CursorToolOption } from "@/sections/Home/Canvas/Cursor/Cursor";
 
-const inter = Inter({ subsets: ['latin'] })
+import css from "../sections/Home/Home.module.scss";
 
-export default function Home() {
+const Home: PageWithLayout = () => {
+  const [canvasInstance, setCanvasInstance] = React.useState<Canvas | null>(
+    null,
+  );
+  const [pointerState, setPointerState] = React.useState<PointerState>(
+    config.pointerConfig.pointerStateInitialValue,
+  );
+  const [toolsState, setToolsState] = React.useState<ToolsState>(
+    config.toolsConfig.toolsStateInitialValue,
+  );
+
+  const penOptions = toolsState[Tools.PEN];
+  const brushOptions = toolsState[Tools.BRUSH];
+  const eraserOptions = toolsState[Tools.ERASER];
+
+  const pointerStateRef = React.useRef(pointerState);
+
+  const cursorToolOption = React.useMemo((): CursorToolOption => {
+    if (toolsState.tool === Tools.PEN) return { tool: toolsState.tool };
+    if (toolsState.tool === Tools.BRUSH)
+      return { tool: toolsState.tool, ...brushOptions };
+
+    return { tool: toolsState.tool, ...eraserOptions };
+  }, [brushOptions, eraserOptions, toolsState.tool]);
+
+  const { clearCanvas, drawDotWithPen, drawLineWithPen, drawWithBrush, erase } =
+    useCanvas({
+      canvasInstance,
+      penOptions,
+      brushOptions,
+      eraserOptions,
+      color: toolsState.color,
+    });
+
+  const {
+    clearHistory,
+    saveUndo,
+    clearRedoState,
+    undo,
+    redo,
+    undoStackEmpty,
+    redoStackEmpty,
+  } = useHistory({
+    canvasInstance,
+  });
+
+  const handleOnPointerStateChange = React.useCallback(
+    (state: PointerState) => {
+      type OnlyKeyWithNumericValues = keyof {
+        [P in keyof PointerState as PointerState[P] extends number | undefined
+          ? P
+          : never]: PointerState[P];
+      };
+      const stateKeysToRound: Array<OnlyKeyWithNumericValues> = [
+        "downX",
+        "downY",
+        "moveX",
+        "moveY",
+      ];
+      stateKeysToRound.forEach((key) => {
+        state[key] = roundMousePosition(state[key]);
+      });
+
+      setPointerState(state);
+    },
+    [],
+  );
+
+  const handleOnPointerDown = React.useCallback<
+    CanvasComponentProps["onPointerDown"]
+  >(
+    (_pointerState) => {
+      switch (toolsState.tool) {
+        case Tools.PEN: {
+          drawDotWithPen({ x: _pointerState.downX, y: _pointerState.downY });
+          break;
+        }
+        case Tools.BRUSH: {
+          drawWithBrush({
+            x: _pointerState.downX,
+            y: _pointerState.downY,
+          });
+          break;
+        }
+        case Tools.ERASER: {
+          erase({ x: _pointerState.downX, y: _pointerState.downY });
+          break;
+        }
+      }
+    },
+    [drawDotWithPen, drawWithBrush, erase, toolsState.tool],
+  );
+
+  const handleOnPointerMove = React.useCallback<
+    CanvasComponentProps["onPointerMove"]
+  >(
+    (_pointerState) => {
+      if (!_pointerState.isPointerDown || !canvasInstance) return;
+
+      const prevPointerState = pointerStateRef.current;
+
+      switch (toolsState.tool) {
+        case Tools.PEN: {
+          drawLineWithPen({
+            fromX: prevPointerState.moveX,
+            fromY: prevPointerState.moveY,
+            toX: _pointerState.moveX,
+            toY: _pointerState.moveY,
+          });
+          break;
+        }
+        case Tools.BRUSH: {
+          drawWithBrush({
+            x: _pointerState.moveX,
+            y: _pointerState.moveY,
+          });
+          break;
+        }
+        case Tools.ERASER: {
+          erase({
+            x: _pointerState.moveX,
+            y: _pointerState.moveY,
+          });
+          break;
+        }
+      }
+    },
+    [canvasInstance, drawWithBrush, drawLineWithPen, erase, toolsState.tool],
+  );
+
+  const handleOnPointerUp = React.useCallback<
+    CanvasComponentProps["onPointerUp"]
+  >(
+    (_pointerState) => {
+      const prevPointerState = pointerStateRef.current;
+
+      if (!prevPointerState.isPointerDown || !canvasInstance) return;
+
+      switch (toolsState.tool) {
+        case Tools.PEN: {
+          drawLineWithPen({
+            fromX: prevPointerState.moveX,
+            fromY: prevPointerState.moveY,
+            toX: _pointerState.moveX,
+            toY: _pointerState.moveY,
+          });
+          break;
+        }
+      }
+
+      clearRedoState();
+      saveUndo();
+    },
+    [
+      canvasInstance,
+      clearRedoState,
+      drawLineWithPen,
+      saveUndo,
+      toolsState.tool,
+    ],
+  );
+
+  const handleOnDocumentPointerUp = React.useCallback(
+    (event: WindowEventMap["pointerup"]) => {
+      if (
+        !canvasInstance ||
+        !pointerStateRef.current.isPointerDown ||
+        !canvasInstance.canvasElement.parentElement
+      )
+        return;
+
+      const rect =
+        canvasInstance.canvasElement.parentElement.getBoundingClientRect();
+
+      const newState = {
+        ...pointerStateRef.current,
+        isPointerDown: false,
+        moveX: Math.max(Math.min(event.clientX - rect.x, rect.width), 0),
+        moveY: Math.max(Math.min(event.clientY - rect.y, rect.height), 0),
+      };
+
+      handleOnPointerStateChange(newState);
+      handleOnPointerUp(newState);
+    },
+    [canvasInstance, handleOnPointerUp, handleOnPointerStateChange],
+  );
+
+  const handleOnResetClick = React.useCallback(() => {
+    if (!canvasInstance) return;
+    clearCanvas(canvasInstance);
+    clearHistory();
+  }, [canvasInstance, clearCanvas, clearHistory]);
+
+  const handleOnUndoClick = React.useCallback(() => undo(), [undo]);
+  const handleOnRedoClick = React.useCallback(() => redo(), [redo]);
+
+  const setCanvasRef = React.useCallback((canvasElement: HTMLCanvasElement) => {
+    const instance = new Canvas(canvasElement);
+    setCanvasInstance(instance);
+  }, []);
+
+  React.useEffect(() => {
+    pointerStateRef.current = pointerState;
+  }, [pointerState]);
+
+  React.useEffect(() => {
+    const listener = handleOnDocumentPointerUp;
+    document.addEventListener("pointerup", listener);
+    return () => document.removeEventListener("pointerup", listener);
+  }, [canvasInstance, handleOnDocumentPointerUp]);
+
+  React.useEffect(() => {
+    // init app
+    if (!canvasInstance) return;
+    clearCanvas(canvasInstance);
+    saveUndo();
+  }, [canvasInstance, clearCanvas, saveUndo]);
+
   return (
     <>
-      <Head>
-        <title>Create Next App</title>
-        <meta name="description" content="Generated by create next app" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-      <main className={`${styles.main} ${inter.className}`}>
-        <div className={styles.description}>
-          <p>
-            Get started by editing&nbsp;
-            <code className={styles.code}>src/pages/index.tsx</code>
-          </p>
-          <div>
-            <a
-              href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              By{' '}
-              <Image
-                src="/vercel.svg"
-                alt="Vercel Logo"
-                className={styles.vercelLogo}
-                width={100}
-                height={24}
-                priority
-              />
-            </a>
-          </div>
-        </div>
+      <CanvasComponent
+        onCanvasRef={setCanvasRef}
+        pointerState={pointerState}
+        cursorToolOption={cursorToolOption}
+        onPointerStateChange={handleOnPointerStateChange}
+        onPointerDown={handleOnPointerDown}
+        onPointerMove={handleOnPointerMove}
+        onPointerUp={handleOnPointerUp}
+      />
 
-        <div className={styles.center}>
-          <Image
-            className={styles.logo}
-            src="/next.svg"
-            alt="Next.js Logo"
-            width={180}
-            height={37}
-            priority
-          />
-        </div>
-
-        <div className={styles.grid}>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2>
-              Docs <span>-&gt;</span>
-            </h2>
-            <p>
-              Find in-depth information about Next.js features and&nbsp;API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2>
-              Learn <span>-&gt;</span>
-            </h2>
-            <p>
-              Learn about Next.js in an interactive course with&nbsp;quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2>
-              Templates <span>-&gt;</span>
-            </h2>
-            <p>
-              Discover and deploy boilerplate example Next.js&nbsp;projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <h2>
-              Deploy <span>-&gt;</span>
-            </h2>
-            <p>
-              Instantly deploy your Next.js site to a shareable URL
-              with&nbsp;Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
+      <ToolBar
+        toolsState={toolsState}
+        onToolsStateChange={setToolsState}
+        onResetClick={handleOnResetClick}
+        onUndoClick={handleOnUndoClick}
+        onRedoClick={handleOnRedoClick}
+        undoStackEmpty={undoStackEmpty}
+        redoStackEmpty={redoStackEmpty}
+        isDrawing={pointerState.isPointerDown}
+      />
     </>
-  )
-}
+  );
+};
+
+Home.getLayout = (page) => {
+  return <PageLayout mainClassName={css.main}>{page}</PageLayout>;
+};
+
+export default Home;

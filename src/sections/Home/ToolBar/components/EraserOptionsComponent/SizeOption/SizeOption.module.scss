@@ -1,0 +1,17 @@
+.container {
+  position: relative;
+  padding-top: 100%;
+}
+
+.label {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 0 0 2px var(--borderColor);
+  border-radius: var(--dp__8);
+
+  &_selected {
+    background-color: var(--colors__primary);
+    color: var(--colors__background_light);
+  }
+}

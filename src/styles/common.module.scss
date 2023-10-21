@@ -1,0 +1,79 @@
+@import "shared.module";
+
+.contentContainer {
+  width: 100%;
+  //noinspection CssInvalidPropertyValue
+  width: -webkit-fill-available;
+  max-width: calc(var(--max-content-width) + (var(--content-padding) * 2));
+  margin: 0 auto;
+  padding: 0 var(--content-padding);
+}
+
+.interactive {
+  --hover-opacity: 0.8;
+  --active-opacity: 0.4;
+  --disabled-opacity: 0.4;
+  --focus-visible-outline-color: var(--colors__primary);
+
+  cursor: pointer;
+
+  &:hover {
+    opacity: var(--hover-opacity);
+  }
+
+  &:active {
+    opacity: var(--active-opacity);
+  }
+
+  &:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--focus-visible-outline-color);
+    outline: 0;
+  }
+
+  &:disabled {
+    opacity: var(--disabled-opacity);
+    cursor: default;
+  }
+
+  &_focusVisibleOuter {
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--focus-visible-outline-color);
+    }
+  }
+}
+
+.absoluteCenter {
+  margin: auto;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+.breakLongWord {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ellipsisMultiline {
+  --linesToShow: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: var(--linesToShow);
+  line-clamp: var(--linesToShow);
+  -webkit-box-orient: vertical;
+}
+
+.visuallyHidden {
+  @include visually-hidden;
+}

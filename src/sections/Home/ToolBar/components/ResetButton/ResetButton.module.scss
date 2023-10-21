@@ -1,0 +1,15 @@
+.button {
+  flex-shrink: 0;
+  display: flex;
+  padding-top: 100%;
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 0 0 2px var(--borderColor);
+  border-radius: var(--dp__8);
+}
+
+.icon {
+  width: var(--iconSize);
+  height: var(--iconSize);
+}

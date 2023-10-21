@@ -1,0 +1,39 @@
+.container {
+  --iconSize: 58%;
+  --borderColor: var(--colors__background_medium);
+  --marginTop: 1.6rem;
+  display: flex;
+  max-height: calc(100% - var(--marginTop) * 2);
+  margin-left: var(--marginTop);
+  position: fixed;
+  top: var(--marginTop);
+  flex-direction: column;
+  background-color: var(--colors__background_light);
+  box-shadow: var(--shadow__8dp);
+  border-radius: var(--dp__16);
+  overflow: hidden;
+  z-index: 1;
+
+  user-select: none;
+
+  &_transparentForMouse {
+    pointer-events: none;
+  }
+}
+
+.scroller {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.contentContainer {
+  display: flex;
+  width: 5.8rem;
+  padding: 1.2rem;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.divider {
+  background-color: var(--borderColor);
+}
